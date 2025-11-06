@@ -1,0 +1,80 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() { return request.auth != null; }
+
+    // ---------- โพสต์ ----------
+    // พาธ: posts/{uid}/{postId}/{fileName}
+    match /posts/{uid}/{postId}/{fileName} {
+      allow read: if true; // จะทำ private ค่อยเปลี่ยนทีหลัง
+      allow write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // ---------- แชท ----------
+    // พาธ: chat_media/{cid}/{uploaderUid}/{fileName}
+    match /chat_media/{cid}/{uploaderUid}/{fileName} {
+      // อ่าน: เปิดกว้าง (หรือเปลี่ยนเป็น signedIn() ได้)
+      allow read: if true;
+      // เขียน: ต้องล็อกอิน และอัปโหลดเข้าโฟลเดอร์ของตัวเองเท่านั้น
+      allow write: if signedIn() && request.auth.uid == uploaderUid;
+    }
+
+    // ---------- รูปโปรไฟล์เพจ ----------
+    // พาธ: page-photos/{ownerUid}/{fileName}
+    match /page-photos/{ownerUid}/{fileName} {
+      allow read: if true;
+      allow write: if signedIn()
+        && request.auth.uid == ownerUid
+        && request.resource.size < 10 * 1024 * 1024 // ≤10 MB
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // ---------- รูปโปรไฟล์กลุ่ม ----------
+    // พาธ: group-photos/{ownerUid}/{fileName}
+    match /group-photos/{ownerUid}/{fileName} {
+      allow read: if true;
+      allow write: if signedIn()
+        && request.auth.uid == ownerUid
+        && request.resource.size < 10 * 1024 * 1024 // ≤10 MB
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // ---------- รูปโปรไฟล์ผู้ใช้ ----------
+    // พาธ: user-photos/{uid}/{fileName}
+    match /user-photos/{uid}/{fileName} {
+      allow read: if true;
+      allow write: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.size < 5 * 1024 * 1024 // ≤5 MB
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // ========== [เพิ่มใหม่] สื่อในโพสต์ของ "เพจ" ==========
+    // พาธ: page-posts/{pageId}/{postId}/{fileName}
+    // โค้ดฝั่งแอปควรอัปโหลดตามพาธนี้ เช่น page-posts/abc123/1710000000000/1710000000000.jpg
+    match /page-posts/{pageId}/{postId}/{fileName} {
+      allow read: if true;
+      // อัปโหลดได้เฉพาะเจ้าของเพจ
+      allow write: if isPageOwner(pageId)
+                   && (isImage() || isVideo())
+                   && sizeOk(50);
+    }
+
+    // ========== [เพิ่มใหม่] สื่อในโพสต์ของ "กลุ่ม" ==========
+    // พาธ: group-posts/{groupId}/{postId}/{fileName}
+    // โค้ดฝั่งแอปของเธอใช้ path นี้อยู่แล้ว: group-posts/{gid}/{ts}/{ts.ext}
+    match /group-posts/{groupId}/{postId}/{fileName} {
+      allow read: if true;
+      // อัปโหลดได้ทั้ง "เจ้าของกลุ่ม" และ "สมาชิกกลุ่ม"
+      allow write: if (isGroupOwner(groupId) || isGroupMember(groupId))
+                   && (isImage() || isVideo())
+                   && sizeOk(50);
+    }
+
+    // ---------- บล็อกพาธอื่น ----------
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

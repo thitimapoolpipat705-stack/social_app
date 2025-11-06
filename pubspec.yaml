@@ -1,0 +1,54 @@
+name: my_social_app
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"   # แทน ^3.8.1 เพื่อรองรับช่วงเวอร์ชันของ Dart/Flutter ได้ยืดหยุ่นกว่า
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Deep link
+  app_links: ^6.3.0
+
+  # Firebase core SDKs (รุ่นเดียวกัน)
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.0
+  cloud_firestore: ^5.4.4
+  firebase_storage: ^12.3.3
+  firebase_messaging: ^15.1.2
+  cloud_functions: ^5.1.4
+  firebase_app_check: ^0.3.0   # ✅ เพิ่มสำหรับ App Check
+
+  # State management & routing
+  flutter_riverpod: ^3.0.1
+  go_router: ^14.2.8
+
+  # Image, Video & Media
+  cached_network_image: ^3.4.1
+  image_picker: ^1.1.1
+  video_player: ^2.9.1
+  flutter_image_compress: ^2.4.0
+
+  # Utils
+  uuid: ^4.5.1
+  timeago: ^3.7.0
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter:
+  uses-material-design: true
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+    
