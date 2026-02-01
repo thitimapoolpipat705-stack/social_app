@@ -75,34 +75,39 @@ class _SearchPeopleFollowScreenState extends State<SearchPeopleFollowScreen> {
             ),
           ),
 
-          // ตัวกรอง
-          Row(
-            children: [
-              Expanded(
-                child: CheckboxListTile(
-                  value: _onlyMutual,
-                  onChanged: (v) => _setFilter(mutual: v ?? false),
-                  title: const Text('ติดตามกันสองทาง'),
-                  dense: true,
+          // ตัวกรอง (ใช้ ChoiceChips แบบ single-selection ให้ดูสะอาดบนมือถือ)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                ChoiceChip(
+                  label: const Text('ติดตามกันสองทาง'),
+                  selected: _onlyMutual,
+                  onSelected: (v) => _setFilter(mutual: v),
+                  selectedColor: Theme.of(context).colorScheme.primary.withOpacity(0.12),
+                  backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+                  elevation: 0,
                 ),
-              ),
-              Expanded(
-                child: CheckboxListTile(
-                  value: _onlyIFollow,
-                  onChanged: (v) => _setFilter(iFollow: v ?? false),
-                  title: const Text('ฉันติดตาม'),
-                  dense: true,
+                ChoiceChip(
+                  label: const Text('ฉันติดตาม'),
+                  selected: _onlyIFollow,
+                  onSelected: (v) => _setFilter(iFollow: v),
+                  selectedColor: Theme.of(context).colorScheme.primary.withOpacity(0.12),
+                  backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+                  elevation: 0,
                 ),
-              ),
-              Expanded(
-                child: CheckboxListTile(
-                  value: _onlyFollowMe,
-                  onChanged: (v) => _setFilter(followMe: v ?? false),
-                  title: const Text('ติดตามฉัน'),
-                  dense: true,
+                ChoiceChip(
+                  label: const Text('ติดตามฉัน'),
+                  selected: _onlyFollowMe,
+                  onSelected: (v) => _setFilter(followMe: v),
+                  selectedColor: Theme.of(context).colorScheme.primary.withOpacity(0.12),
+                  backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+                  elevation: 0,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const Divider(height: 0),
 
@@ -191,7 +196,7 @@ class _SearchPeopleFollowScreenState extends State<SearchPeopleFollowScreen> {
                                   ),
                                   if (mutual) const _Badge(color: Colors.green, label: 'Mutual'),
                                   if (!mutual && iFollow) const _Badge(color: Colors.blue, label: 'I follow'),
-                                  if (!mutual && followMe) const _Badge(color: Colors.deepPurple, label: 'Follows me'),
+                                  if (!mutual && followMe) const _Badge(color: Colors.amber, label: 'Follows me'),
                                 ],
                               ),
                               subtitle: Text(username.isNotEmpty ? '@$username' : 'uid: $uid', maxLines: 2, overflow: TextOverflow.ellipsis),

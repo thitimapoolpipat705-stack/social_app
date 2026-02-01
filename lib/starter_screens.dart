@@ -117,7 +117,10 @@ class _SignInScreenState extends State<SignInScreen> {
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [cs.primaryContainer.withOpacity(.6), cs.secondaryContainer.withOpacity(.6)],
+            colors: [
+              cs.primary.withOpacity(.08),
+              cs.primaryContainer.withOpacity(.04),
+            ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -315,7 +318,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [cs.secondaryContainer.withOpacity(.65), cs.primaryContainer.withOpacity(.65)],
+            colors: [
+              cs.primaryContainer.withOpacity(.06),
+              cs.secondaryContainer.withOpacity(.04),
+            ],
             begin: Alignment.topRight,
             end: Alignment.bottomLeft,
           ),

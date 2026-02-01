@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:video_player/video_player.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -135,11 +136,20 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>( 
-          future: FirebaseFirestore.instance.collection('users').doc(widget.otherUid).get(),
+        elevation: 0.5,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        titleSpacing: 0,
+        title: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance.collection('users').doc(widget.otherUid).snapshots(),
           builder: (context, userSnap) {
             if (userSnap.connectionState == ConnectionState.waiting) {
-              return const CircularProgressIndicator();
+              return const Row(
+                children: [
+                  CircleAvatar(radius: 18),
+                  SizedBox(width: 12),
+                  Text('Loading...')
+                ],
+              );
             }
             final userData = userSnap.data?.data();
             final profilePic = userData?['photoURL'] ?? '';
@@ -148,11 +158,34 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             return Row(
               children: [
                 CircleAvatar(
+                  radius: 18,
                   backgroundImage: profilePic.isNotEmpty ? NetworkImage(profilePic) : null,
-                  child: profilePic.isEmpty ? Text(userName[0]) : null,
+                  child: profilePic.isEmpty ? Text(userName.isNotEmpty ? userName[0] : '?') : null,
                 ),
                 const SizedBox(width: 12),
-                Text(userName),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(userName, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 2),
+                      // show typing/online state
+                      StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                        stream: repo.memberState(widget.cid, widget.otherUid),
+                        builder: (ctx, s2) {
+                          final data = s2.data?.data();
+                          final typing = data?['typing'] as bool? ?? false;
+                          final online = data?['online'] as bool? ?? false;
+                          if (typing) return Text('typing...', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.primary));
+                          if (online) return Text('online', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.green));
+                          return const SizedBox.shrink();
+                        },
+                      )
+                    ],
+                  ),
+                ),
+                IconButton(onPressed: () {}, icon: const Icon(Icons.more_vert)),
               ],
             );
           },
@@ -227,41 +260,55 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           ),
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
               child: Row(
                 children: [
-                  // ปุ่มแนบไฟล์
-                  IconButton(
-                    icon: const Icon(Icons.attach_file),
-                    onPressed: _sending ? null : _pickAndSendMedia,
-                    tooltip: 'Attach media',
-                  ),
-                  // กล่องข้อความ
+                  // rounded input bar
                   Expanded(
-                    child: TextField(
-                      controller: input,
-                      minLines: 1,
-                      maxLines: 4,
-                      decoration: const InputDecoration(
-                        hintText: 'Message...',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(30),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6)],
                       ),
-                      onChanged: _handleTypingChanged,
-                      onSubmitted: (_) => _sendText(),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.add_a_photo_outlined, size: 20),
+                            onPressed: _sending ? null : _pickAndSendMedia,
+                          ),
+                          Expanded(
+                            child: TextField(
+                              controller: input,
+                              minLines: 1,
+                              maxLines: 4,
+                              decoration: InputDecoration.collapsed(hintText: 'Message...'),
+                              onChanged: _handleTypingChanged,
+                              onSubmitted: (_) => _sendText(),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          // quick emoji hint
+                          IconButton(
+                            icon: const Icon(Icons.emoji_emotions_outlined, size: 20),
+                            onPressed: () {},
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  // ปุ่มส่ง
-                  IconButton(
-                    icon: _sending
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.send),
-                    onPressed: _sending ? null : _sendText,
+                  // circular send button
+                  Material(
+                    shape: const CircleBorder(),
+                    color: _sending ? Theme.of(context).disabledColor : Theme.of(context).colorScheme.primary,
+                    child: IconButton(
+                      icon: _sending
+                          ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.send, color: Colors.white),
+                      onPressed: _sending ? null : _sendText,
+                    ),
                   ),
                 ],
               ),
@@ -505,43 +552,82 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = mine ? Theme.of(context).colorScheme.primaryContainer : Theme.of(context).colorScheme.surfaceVariant;
+    final cs = Theme.of(context).colorScheme;
+    final bg = mine ? null : cs.surfaceVariant;
+
+    final borderRadius = BorderRadius.only(
+      topLeft: const Radius.circular(16),
+      topRight: const Radius.circular(16),
+      bottomLeft: Radius.circular(mine ? 16 : 4),
+      bottomRight: Radius.circular(mine ? 4 : 16),
+    );
 
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-      child: InkWell(
-        onLongPress: onLongPress,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
-          child: Column(
-            crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-            children: [
-              // Media (แสดงรูปแรก; ถ้าต้องการหลายรูปปรับเป็น Grid/PageView)
-              if (media.isNotEmpty) ...[
-                _mediaPreview(media.first),
-                const SizedBox(height: 6),
-              ],
-              if (text.isNotEmpty) Text(text),
-              const SizedBox(height: 4),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(timeText, style: Theme.of(context).textTheme.labelSmall),
-                  const SizedBox(width: 4),
-                  readBuilder(),
+      child: Material(
+        type: MaterialType.transparency,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.75,
+            minWidth: 48.0,
+          ),
+          child: InkWell(
+            onLongPress: onLongPress,
+            borderRadius: BorderRadius.circular(18),
+            child: Ink(
+              decoration: BoxDecoration(
+                color: bg,
+                gradient: mine
+                    ? LinearGradient(
+                        colors: [cs.primaryContainer, cs.primary.withOpacity(.95)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : null,
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 6, offset: const Offset(0, 2)),
                 ],
+                borderRadius: borderRadius,
               ),
-            ],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Column(
+                  crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (media.isNotEmpty) ...[
+                      ...media.map((m) => Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: _mediaPreview(context, m),
+                          )).toList(),
+                    ],
+                    if (text.isNotEmpty)
+                      Text(text, style: Theme.of(context).textTheme.bodyMedium),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(timeText,
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.grey)),
+                          if (mine) ...[
+                            const SizedBox(width: 4),
+                            readBuilder(),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _mediaPreview(Map<String, dynamic> m) {
+  Widget _mediaPreview(BuildContext context, Map<String, dynamic> m) {
     final type = (m['type'] as String?) ?? 'image';
     final url = (m['url'] as String?) ?? '';
 
@@ -560,16 +646,98 @@ class _MessageBubble extends StatelessWidget {
         ),
       );
     } else {
-      return Container(
-        width: 180,
-        height: 120,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: Colors.black12,
-          borderRadius: BorderRadius.circular(8),
+      // Use a dedicated VideoPreview widget so we can initialize a
+      // VideoPlayerController and provide play/pause controls.
+      final double maxW = MediaQuery.of(context).size.width * 0.6;
+      final double w = maxW < 220.0 ? maxW : 220.0;
+      final double h = w * 9.0 / 16.0;
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: SizedBox(
+          width: w,
+          height: h,
+          child: VideoPreview(url: url),
         ),
-        child: const Icon(Icons.videocam_outlined, size: 32),
       );
     }
+  }
+}
+
+/// Small video preview/player used inside chat bubbles.
+class VideoPreview extends StatefulWidget {
+  final String url;
+  const VideoPreview({super.key, required this.url});
+
+  @override
+  State<VideoPreview> createState() => _VideoPreviewState();
+}
+
+class _VideoPreviewState extends State<VideoPreview> {
+  VideoPlayerController? _controller;
+  bool _initialized = false;
+  bool _playing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
+      ..setLooping(false)
+      ..initialize().then((_) {
+        if (!mounted) return;
+        setState(() {
+          _initialized = true;
+        });
+      }).catchError((e) {
+        // ignore init errors, show fallback UI
+        if (!mounted) return;
+        setState(() => _initialized = false);
+      });
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  void _togglePlay() {
+    if (!(_controller?.value.isInitialized ?? false)) return;
+    setState(() {
+      if (_controller!.value.isPlaying) {
+        _controller!.pause();
+        _playing = false;
+      } else {
+        _controller!.play();
+        _playing = true;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_initialized) {
+      return Container(
+        color: Colors.black12,
+        alignment: Alignment.center,
+        child: const SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+
+    final aspect = _controller?.value.aspectRatio ?? (16 / 9);
+    return GestureDetector(
+      onTap: _togglePlay,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          AspectRatio(aspectRatio: aspect, child: VideoPlayer(_controller!)),
+          if (!_playing)
+            Container(
+              color: Colors.black26,
+            ),
+          if (!_playing)
+            const Icon(Icons.play_circle_fill, size: 48, color: Colors.white70),
+        ],
+      ),
+    );
   }
 }

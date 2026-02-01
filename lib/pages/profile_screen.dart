@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../starter_screens.dart';
 import '../screens/group/create_group_screen.dart';
+import '../screens/page/create_page_screen.dart';
+import '../screens/page/page_feed_screen.dart';
 import 'package:go_router/go_router.dart';
 
 
@@ -273,14 +275,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ListTile(
                     leading: const Icon(Icons.dashboard_customize_outlined),
                     title: const Text('Create Page'),
-                    onTap: () {
+                    onTap: () async {
                       Navigator.pop(context);
-                      // try to navigate to a page-creation route; adjust if your app uses a different route
+                      // open CreatePageScreen directly
                       try {
-                        Navigator.pushNamed(context, '/page/create');
-                      } catch (_) {
-                        // route may not exist; show a simple message
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Create Page not implemented')));
+                        final pageId = await Navigator.push<String?>(
+                          context,
+                          MaterialPageRoute(builder: (_) => const CreatePageScreen()),
+                        );
+                        if (pageId != null && pageId.isNotEmpty) {
+                          // fetch page name
+                          final doc = await FirebaseFirestore.instance.collection('pages').doc(pageId).get();
+                          final name = (doc.data()?['name'] ?? '') as String;
+                          if (!mounted) return;
+                          // navigate to the page feed screen
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => PageFeedScreen(pageId: pageId, pageName: name)));
+                        }
+                      } catch (e) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Create Page failed: $e')));
                       }
                     },
                   ),
@@ -406,7 +419,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Positioned.fill(
                         child: coverUrl.isNotEmpty
                             ? Image.network(coverUrl, fit: BoxFit.cover)
-                            : Container(color: Theme.of(context).colorScheme.surfaceVariant),
+                            : Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Theme.of(context).colorScheme.primary.withOpacity(.6),
+                                    Theme.of(context).colorScheme.primaryContainer.withOpacity(.4),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                              ),
+                            ),
                       ),
                       Positioned(
                         bottom: 0, left: 0, right: 0,

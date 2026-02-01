@@ -1,8 +1,9 @@
 // lib/widgets/feed_card.dart
 import 'dart:async';
-import 'dart:convert';
+// dart:convert not needed here
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:video_player/video_player.dart';
 
 class FeedCard extends StatelessWidget {
   final String postId;
@@ -67,7 +68,7 @@ class FeedCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    final firstImage = _firstImage(); // (provider, isValid)
+  final firstMedia = _firstMedia(); // first media map or null
     final isEdited = (updatedAt != null && createdAt != null && updatedAt!.isAfter(createdAt!));
 
     return Card(
@@ -158,22 +159,11 @@ class FeedCard extends StatelessWidget {
             ),
 
             // ========== Media ==========
-            if (firstImage != null) ...[
+            if (firstMedia != null) ...[
               const SizedBox(height: 12),
               ClipRRect(
                 borderRadius: BorderRadius.circular(14),
-                child: AspectRatio(
-                  aspectRatio: 1,
-                  child: Image(
-                    image: firstImage,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      color: t.colorScheme.surfaceVariant,
-                      alignment: Alignment.center,
-                      child: const Icon(Icons.broken_image_outlined),
-                    ),
-                  ),
-                ),
+                        child: _mediaPreview(context, firstMedia),
               ),
             ],
 
@@ -254,29 +244,145 @@ class FeedCard extends StatelessWidget {
     return '$likes likes';
   }
 
-  /// ดึงรูปแรก (รองรับทั้ง URL และ base64/ data:image)
-  ImageProvider? _firstImage() {
+  /// Return the first media item (map with url/type) or null.
+  Map<String, dynamic>? _firstMedia() {
     for (final m in media) {
-      final type = (m['type'] as String?) ?? 'image';
-      final raw = (m['url'] as String?)?.trim();
-      if (type != 'image' || raw == null || raw.isEmpty) continue;
-
-      // URL
-      if (raw.startsWith('http')) return NetworkImage(raw);
-
-      // data:image;base64,xxxx
-      final base64Str = raw.startsWith('data:image')
-          ? raw.split(',').last
-          : raw;
-
-      try {
-        final bytes = base64Decode(base64Str);
-        return MemoryImage(bytes);
-      } catch (_) {
-        // รูปเสีย/ไม่ใช่ base64 — ข้าม
-      }
+      if (m == null) continue;
+      final map = Map<String, dynamic>.from(m);
+      final raw = (map['url'] as String?)?.trim();
+      if (raw == null || raw.isEmpty) continue;
+      map['url'] = raw;
+      map['type'] = (map['type'] as String?) ?? _inferType(raw);
+      return map;
     }
     return null;
+  }
+
+  Widget _mediaPreview(BuildContext context, Map<String, dynamic> m) {
+    final type = (m['type'] as String?) ?? 'image';
+    final url = (m['url'] as String?) ?? '';
+
+    final t = Theme.of(context);
+
+    if (type == 'image') {
+      final provider = url.startsWith('http') ? NetworkImage(url) : null;
+      if (provider != null) {
+        return AspectRatio(
+          aspectRatio: 1,
+          child: Image(
+            image: provider,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(
+              color: t.colorScheme.surfaceVariant,
+              alignment: Alignment.center,
+              child: const Icon(Icons.broken_image_outlined),
+            ),
+          ),
+        );
+      }
+      // fallback: plain container
+      return Container(
+        width: 120,
+        height: 120,
+        color: t.colorScheme.surfaceVariant,
+        alignment: Alignment.center,
+        child: const Icon(Icons.broken_image_outlined),
+      );
+    } else {
+      // video
+      return SizedBox(
+        width: double.infinity,
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
+          child: VideoPreview(url: url),
+        ),
+      );
+    }
+  }
+
+  String _inferType(String url) {
+    final u = url.toLowerCase();
+    if (u.endsWith('.mp4') || u.endsWith('.mov') || u.contains('video')) return 'video';
+    return 'image';
+  }
+}
+
+/// Small video preview used inside feed cards.
+class VideoPreview extends StatefulWidget {
+  final String url;
+  const VideoPreview({super.key, required this.url});
+
+  @override
+  State<VideoPreview> createState() => _VideoPreviewState();
+}
+
+class _VideoPreviewState extends State<VideoPreview> {
+  VideoPlayerController? _controller;
+  bool _initialized = false;
+  bool _playing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    try {
+      _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
+        ..setLooping(false)
+        ..initialize().then((_) {
+          if (!mounted) return;
+          setState(() {
+            _initialized = true;
+          });
+        }).catchError((_) {
+          if (!mounted) return;
+          setState(() => _initialized = false);
+        });
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  void _togglePlay() {
+    if (!(_controller?.value.isInitialized ?? false)) return;
+    setState(() {
+      if (_controller!.value.isPlaying) {
+        _controller!.pause();
+        _playing = false;
+      } else {
+        _controller!.play();
+        _playing = true;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_initialized) {
+      return Container(
+        color: Theme.of(context).colorScheme.surfaceVariant,
+        alignment: Alignment.center,
+        child: const SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+
+    final aspect = _controller?.value.aspectRatio ?? (16 / 9);
+    return GestureDetector(
+      onTap: _togglePlay,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          AspectRatio(aspectRatio: aspect, child: VideoPlayer(_controller!)),
+          if (!_playing)
+            Container(color: Colors.black26),
+          if (!_playing) const Icon(Icons.play_circle_fill, size: 48, color: Colors.white70),
+        ],
+      ),
+    );
   }
 }
 

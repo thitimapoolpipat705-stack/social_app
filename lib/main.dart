@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
@@ -84,7 +85,17 @@ class StarterAppRoot extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        colorSchemeSeed: Colors.deepPurple,
+        // Modern gradient-inspired color scheme: Vibrant Purple & Blue
+        colorSchemeSeed: const Color(0xFF6366F1), // Indigo - modern & professional
+        brightness: Brightness.light,
+        // Optional: Fine-tune the color scheme further
+        splashFactory: InkRipple.splashFactory,
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          },
+        ),
       ),
       home: StarterApp(), // << ตัว GoRouter หลักอยู่ใน starter_app.dart
     );

@@ -35,6 +35,11 @@ class _HomeScaffoldState extends State<HomeScaffold> {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
+      // Keep the FAB and bottom bar visually anchored when the keyboard opens.
+      // This prevents the FAB from moving up with the keyboard. If body
+      // scrolling is required while typing, ensure individual pages use
+      // scrollables (ListView/SingleChildScrollView) so content isn't hidden.
+      resizeToAvoidBottomInset: false,
       body: IndexedStack(index: _index, children: _pages),
 
       // ===== FAB โพสต์ =====
@@ -45,6 +50,8 @@ class _HomeScaffoldState extends State<HomeScaffold> {
           heroTag: 'fab-post',
           elevation: 8,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: cs.primary,
+          foregroundColor: cs.onPrimary,
           onPressed: () async {
             if (FirebaseAuth.instance.currentUser == null) {
               if (!mounted) return;
@@ -80,6 +87,7 @@ class _HomeScaffoldState extends State<HomeScaffold> {
             child: BottomAppBar(
               elevation: 10,
               color: cs.surface,
+              shadowColor: cs.primary.withOpacity(.15),
               shape: const CircularNotchedRectangle(),
               notchMargin: 8,
               height: 72,
